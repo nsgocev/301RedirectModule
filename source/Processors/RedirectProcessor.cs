@@ -11,7 +11,9 @@ using Sitecore.Diagnostics;
 using Sitecore.Resources.Media;
 using SharedSource.RedirectModule.Classes;
 using SharedSource.RedirectModule.Helpers;
+using Sitecore.Data.Fields;
 using Sitecore.Rules;
+using Sitecore.Rules.Actions;
 
 namespace SharedSource.RedirectModule.Processors
 {
@@ -31,10 +33,10 @@ namespace SharedSource.RedirectModule.Processors
             if ((Sitecore.Context.Item == null || AllowRedirectsOnFoundItem(Sitecore.Context.Database)) && args.LocalPath != Constants.Paths.VisitorIdentification && Sitecore.Context.Database != null)
             {
                 // Grab the actual requested path for use in both the item and pattern match sections.
-                var requestedUrl = HttpContext.Current.Request.Url.ToString();
-                var requestedPath = HttpContext.Current.Request.Url.AbsolutePath;
-                var requestedPathAndQuery = HttpContext.Current.Request.Url.PathAndQuery;
-                var db = Sitecore.Context.Database;
+                string requestedUrl = HttpContext.Current.Request.Url.ToString();
+                string requestedPath = HttpContext.Current.Request.Url.AbsolutePath;
+                string requestedPathAndQuery = HttpContext.Current.Request.Url.PathAndQuery;
+                Database db = Sitecore.Context.Database;
 
                 // First, we check for exact matches because those take priority over pattern matches.
                 if (Sitecore.Configuration.Settings.GetBoolSetting(Constants.Settings.RedirExactMatch, true))
@@ -51,7 +53,7 @@ namespace SharedSource.RedirectModule.Processors
                 // Next, we check for rule matches because we didn't hit on an exact match or pattern match.
                 if (Sitecore.Configuration.Settings.GetBoolSetting(Constants.Settings.RedirRuleMatch, true))
                 {
-                    CheckForRulesMatch(db, requestedUrl, requestedPathAndQuery, args);
+                    CheckForRulesMatch(db, requestedUrl, args);
                 }
             }
         }
@@ -64,23 +66,23 @@ namespace SharedSource.RedirectModule.Processors
                 if (requestedUrl.Equals(possibleRedirect[Constants.Fields.RequestedUrl], StringComparison.OrdinalIgnoreCase) ||
                      requestedPath.Equals(possibleRedirect[Constants.Fields.RequestedUrl], StringComparison.OrdinalIgnoreCase))
                 {
-                    var redirectToItemId = possibleRedirect.Fields[Constants.Fields.RedirectToItem];
-                    var redirectToUrl = possibleRedirect.Fields[Constants.Fields.RedirectToUrl];
+                    Field redirectToItemId = possibleRedirect.Fields[Constants.Fields.RedirectToItem];
+                    Field redirectToUrl = possibleRedirect.Fields[Constants.Fields.RedirectToUrl];
 
                     if (redirectToItemId.HasValue && !string.IsNullOrEmpty(redirectToItemId.ToString()))
                     {
-                        var redirectToItem = db.GetItem(ID.Parse(redirectToItemId));
+                        Item redirectToItem = db.GetItem(ID.Parse(redirectToItemId));
 
                         if (redirectToItem != null)
                         {
-                            var responseStatus = GetResponseStatus(possibleRedirect);
+                            ResponseStatus responseStatus = GetResponseStatus(possibleRedirect);
 
                             SendResponse(redirectToItem, HttpContext.Current.Request.Url.Query, responseStatus, args);
                         }
                     }
                     else if (redirectToUrl.HasValue && !string.IsNullOrEmpty(redirectToUrl.ToString()))
                     {
-                        var responseStatus = GetResponseStatus(possibleRedirect);
+                        ResponseStatus responseStatus = GetResponseStatus(possibleRedirect);
 
                         SendResponse(redirectToUrl.Value, HttpContext.Current.Request.Url.Query, responseStatus, args);
                     }
@@ -93,7 +95,7 @@ namespace SharedSource.RedirectModule.Processors
             // Loop through the pattern match items to find a match
             foreach (Item possibleRedirectPattern in GetRedirects(db, Constants.Templates.RedirectPattern, Constants.Templates.VersionedRedirectPattern, Sitecore.Configuration.Settings.GetSetting(Constants.Settings.QueryExactMatch)))
             {
-                var redirectPath = string.Empty;
+                string redirectPath = string.Empty;
                 if (Regex.IsMatch(requestedUrl, possibleRedirectPattern[Constants.Fields.RequestedExpression], RegexOptions.IgnoreCase))
                 {
                     redirectPath = Regex.Replace(requestedUrl, possibleRedirectPattern[Constants.Fields.RequestedExpression],
@@ -105,37 +107,41 @@ namespace SharedSource.RedirectModule.Processors
                                                  possibleRedirectPattern[Constants.Fields.RequestedExpression],
                                                  possibleRedirectPattern[Constants.Fields.SourceItem], RegexOptions.IgnoreCase);
                 }
-                if (string.IsNullOrEmpty(redirectPath)) continue;
+
+                if (string.IsNullOrEmpty(redirectPath))
+                {
+                    continue;
+                }
 
                 // Query portion gets in the way of getting the sitecore item.
-                var pathAndQuery = redirectPath.Split('?');
-                var path = pathAndQuery[0];
-                if (LinkManager.Provider != null &&
-                    LinkManager.Provider.GetDefaultUrlOptions() != null &&
-                    LinkManager.Provider.GetDefaultUrlOptions().EncodeNames)
+                string[] pathAndQuery = redirectPath.Split('?');
+                string path = pathAndQuery[0];
+
+                if (LinkManager.GetDefaultUrlOptions() != null &&
+                    LinkManager.GetDefaultUrlOptions().EncodeNames)
                 {
                     path = Sitecore.MainUtil.DecodeName(path);
                 }
-                var redirectToItem = db.GetItem(path);
+                Item redirectToItem = db.GetItem(path);
                 if (redirectToItem != null)
                 {
-                    var query = pathAndQuery.Length > 1 ? "?" + pathAndQuery[1] : "";
-                    var responseStatus = GetResponseStatus(possibleRedirectPattern);
+                    string query = pathAndQuery.Length > 1 ? "?" + pathAndQuery[1] : "";
+                    ResponseStatus responseStatus = GetResponseStatus(possibleRedirectPattern);
 
                     SendResponse(redirectToItem, query, responseStatus, args);
                 }
             }
         }
 
-        private void CheckForRulesMatch(Database db, string requestedUrl, string requestedPathAndQuery, HttpRequestArgs args)
+        private void CheckForRulesMatch(Database db, string requestedUrl, HttpRequestArgs args)
         {
             // Loop through the pattern match items to find a match
             foreach (Item possibleRedirectRule in GetRedirects(db, Constants.Templates.RedirectRule, Constants.Templates.VersionedRedirectRule, Sitecore.Configuration.Settings.GetSetting(Constants.Settings.QueryExactMatch)))
             {
-                var ruleContext = new RuleContext();
+                RuleContext ruleContext = new RuleContext();
                 ruleContext.Parameters.Add("newUrl", requestedUrl);
 
-                foreach (Rule<RuleContext> rule in RuleFactory.GetRules<RuleContext>((IEnumerable<Item>)new Item[1] { possibleRedirectRule }, "Redirect Rule").Rules)
+                foreach (Rule<RuleContext> rule in RuleFactory.GetRules<RuleContext>(new [] { possibleRedirectRule }, "Redirect Rule").Rules)
                 {
                     if (rule.Condition != null)
                     {
@@ -143,7 +149,7 @@ namespace SharedSource.RedirectModule.Processors
                         rule.Condition.Evaluate(ruleContext, stack);
                         if (!ruleContext.IsAborted && (stack.Count != 0 && (bool)stack.Pop()))
                         {
-                            foreach (var action in rule.Actions)
+                            foreach (RuleAction<RuleContext> action in rule.Actions)
                             {
                                 action.Apply(ruleContext);
                             }
@@ -153,7 +159,7 @@ namespace SharedSource.RedirectModule.Processors
 
                 if (ruleContext.Parameters["newUrl"] != null && ruleContext.Parameters["newUrl"].ToString() != string.Empty && ruleContext.Parameters["newUrl"].ToString() != requestedUrl)
                 {
-                   var responseStatus = GetResponseStatus(possibleRedirectRule);
+                   ResponseStatus responseStatus = GetResponseStatus(possibleRedirectRule);
                     // The query string will be in the URL already, so don't break it apart.
                     SendResponse(ruleContext.Parameters["newUrl"].ToString(), string.Empty, responseStatus, args);
                 }
@@ -163,12 +169,18 @@ namespace SharedSource.RedirectModule.Processors
         private static bool AllowRedirectsOnFoundItem(Database db)
         {
             if (db == null)
+            {
                 return false;
-            var redirectRoot = Sitecore.Configuration.Settings.GetSetting(Constants.Settings.RedirectRootNode);
-            var redirectFolderRoot = db.SelectSingleItem(redirectRoot);
+            }
+
+            string redirectRoot = Sitecore.Configuration.Settings.GetSetting(Constants.Settings.RedirectRootNode);
+            Item redirectFolderRoot = db.SelectSingleItem(redirectRoot);
             if (redirectFolderRoot == null)
+            {
                 return false;
-            var allowRedirectsOnItemIDs = redirectFolderRoot[Constants.Fields.ItemProcessRedirects];
+            }
+
+            string allowRedirectsOnItemIDs = redirectFolderRoot[Constants.Fields.ItemProcessRedirects];
             return allowRedirectsOnItemIDs != null &&
                       allowRedirectsOnItemIDs.Contains(Sitecore.Context.Item.ID.ToString());
         }
@@ -184,18 +196,18 @@ namespace SharedSource.RedirectModule.Processors
         {
             // Based off the config file, we can run different types of queries. 
             IEnumerable<Item> ret = null;
-            var redirectRoot = Sitecore.Configuration.Settings.GetSetting(Constants.Settings.RedirectRootNode);
+            string redirectRoot = Sitecore.Configuration.Settings.GetSetting(Constants.Settings.RedirectRootNode);
             switch (queryType)
             {
                 case "fast": // fast query
                     {
                         //process shared template items
-                        ret = db.SelectItems(String.Format("fast:{0}//*[@@templatename='{1}']", redirectRoot, templateName));
+                        ret = db.SelectItems(string.Format("fast:{0}//*[@@templatename='{1}']", redirectRoot, templateName));
 
                         //because fast query requires to check for active versions in the current language
                         //run a separate query for versioned items to see if this is even necessary.
                         //if only shared templates exist in System/Modules, this step is extraneous and unnecessary.
-                        IEnumerable<Item> versionedItems = db.SelectItems(String.Format("fast:{0}//*[@@templatename='{1}']", redirectRoot, versionedTemplateName));
+                        IEnumerable<Item> versionedItems = db.SelectItems(string.Format("fast:{0}//*[@@templatename='{1}']", redirectRoot, versionedTemplateName));
 
                         //if active versions of items in the current context exist, union the two IEnumerable lists together.
                         ret = versionedItems.Any(i => i.Versions.Count > 0)
@@ -205,14 +217,17 @@ namespace SharedSource.RedirectModule.Processors
                     }
                 case "query": // Sitecore query
                     {
-                        ret = db.SelectItems(String.Format("{0}//*[@@templatename='{1}' or @@templatename='{2}']", redirectRoot, templateName, versionedTemplateName));
+                        ret = db.SelectItems(string.Format("{0}//*[@@templatename='{1}' or @@templatename='{2}']", redirectRoot, templateName, versionedTemplateName));
                         break;
                     }
                 default: // API LINQ
                     {
                         Item redirectFolderRoot = db.SelectSingleItem(redirectRoot);
                         if (redirectFolderRoot != null)
+                        {
                             ret = redirectFolderRoot.Axes.GetDescendants().Where(i => i.TemplateName == templateName || i.TemplateName == versionedTemplateName);
+                        }
+
                         break;
                     }
             }
@@ -226,25 +241,25 @@ namespace SharedSource.RedirectModule.Processors
         /// </summary>
         private static void SendResponse(Item redirectToItem, string queryString, ResponseStatus responseStatus, HttpRequestArgs args)
         {
-            var redirectToUrl = GetRedirectToItemUrl(redirectToItem);
+            string redirectToUrl = GetRedirectToItemUrl(redirectToItem);
             SendResponse(redirectToUrl, queryString, responseStatus, args);
         }
 
         private static void SendResponse(string redirectToUrl, string queryString, ResponseStatus responseStatusCode, HttpRequestArgs args)
         {
-            args.Context.Response.Status = responseStatusCode.Status;
-            args.Context.Response.StatusCode = responseStatusCode.StatusCode;
-            args.Context.Response.AddHeader("Location", redirectToUrl + queryString);
-            args.Context.Response.End();
+            args.HttpContext.Response.Status = responseStatusCode.Status;
+            args.HttpContext.Response.StatusCode = responseStatusCode.StatusCode;
+            args.HttpContext.Response.AddHeader("Location", redirectToUrl + queryString);
+            args.HttpContext.Response.End();
         }
 
         private static string GetRedirectToItemUrl(Item redirectToItem)
         {
             if (redirectToItem.Paths.Path.StartsWith(Constants.Paths.MediaLibrary))
             {
-                var mediaItem = (MediaItem)redirectToItem;
-                var mediaUrl = MediaManager.GetMediaUrl(mediaItem);
-                var redirectToUrl = Sitecore.StringUtil.EnsurePrefix('/', mediaUrl);
+                MediaItem mediaItem = redirectToItem;
+                string mediaUrl = MediaManager.GetMediaUrl(mediaItem);
+                string redirectToUrl = Sitecore.StringUtil.EnsurePrefix('/', mediaUrl);
                 return redirectToUrl;
             }
 
@@ -253,7 +268,7 @@ namespace SharedSource.RedirectModule.Processors
 
         private static ResponseStatus GetResponseStatus(Item redirectItem)
         {
-            var result = new ResponseStatus
+            ResponseStatus result = new ResponseStatus
             {
                 Status = "301 Moved Permanently",
                 StatusCode = 301,
@@ -261,11 +276,11 @@ namespace SharedSource.RedirectModule.Processors
 
             if (redirectItem != null)
             {
-                var responseStatusCodeId = redirectItem.Fields[Constants.Fields.ResponseStatusCode];
+                Field responseStatusCodeId = redirectItem.Fields[Constants.Fields.ResponseStatusCode];
 
                 if (responseStatusCodeId != null && responseStatusCodeId.HasValue && !string.IsNullOrEmpty(responseStatusCodeId.ToString()))
                 {      
-                    var responseStatusCodeItem = redirectItem.Database.GetItem(ID.Parse(responseStatusCodeId));
+                    Item responseStatusCodeItem = redirectItem.Database.GetItem(ID.Parse(responseStatusCodeId));
 
                     if (responseStatusCodeItem != null)
                     {

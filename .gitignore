@@ -5,3 +5,6 @@ obj/
 *.user
 *.suo
 libraries/
+/source/.vs/RedirectModule/v15/Server/sqlite3
+/source/packages/Sitecore.Kernel.NoReferences.9.0.180604
+/source/RedirectModule.sln.GhostDoc.xml

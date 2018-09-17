@@ -1,4 +1,5 @@
-﻿using Sitecore.Data.Items;
+﻿using Sitecore.Data.Fields;
+using Sitecore.Data.Items;
 
 namespace SharedSource.RedirectModule.Helpers
 {
@@ -14,7 +15,7 @@ namespace SharedSource.RedirectModule.Helpers
                 return defaultValue;
             }
 
-            var field = item.Fields[fieldName];
+            Field field = item.Fields[fieldName];
 
             if (field != null && field.HasValue)
             {

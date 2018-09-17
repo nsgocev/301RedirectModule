@@ -1,6 +1,5 @@
 ﻿using SharedSource.RedirectModule.Helpers;
 using Sitecore.Data;
-using Sitecore.Data.Events;
 using Sitecore.Data.Items;
 using Sitecore.Diagnostics;
 using Sitecore.Events;
@@ -60,10 +59,10 @@ namespace SharedSource.RedirectModule.Handlers
                             newItem.Fields["Redirect To Item"].Value = item.ID.ToString();
                             newItem.Editing.EndEdit();
                         }
-                        catch (System.Exception ex)
+                        catch (Exception ex)
                         {
                             // The update failed, write a message to the log
-                            Sitecore.Diagnostics.Log.Error("Could not update item " + newItem.Paths.FullPath + ": " + ex.Message, this);
+                            Log.Error("Could not update item " + newItem.Paths.FullPath + ": " + ex.Message, this);
                             newItem.Editing.CancelEdit();
                         }
                     }

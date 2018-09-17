@@ -9,11 +9,14 @@ namespace SharedSource.RedirectModule.Rules.Conditions
 
         protected override bool Execute(T ruleContext)
         {
-            Assert.ArgumentNotNull((object)ruleContext, "ruleContext");
-            string str = this.Value;
+            Assert.ArgumentNotNull(ruleContext, "ruleContext");
+            string str = Value;
             if (str == null)
+            {
                 return false;
-            return this.Compare(HttpContext.Current.Request.Url.ToString(), str);
+            }
+
+            return Compare(HttpContext.Current.Request.Url.ToString(), str);
         }
     }
 }

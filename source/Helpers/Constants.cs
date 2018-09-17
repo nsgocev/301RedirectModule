@@ -1,6 +1,4 @@
-﻿using System.ComponentModel;
-
-namespace SharedSource.RedirectModule.Helpers
+﻿namespace SharedSource.RedirectModule.Helpers
 {
     public static class Constants
     {

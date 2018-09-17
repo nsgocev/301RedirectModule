@@ -1,17 +1,11 @@
 ﻿using Sitecore.Data;
 using Sitecore.Data.Items;
-using Sitecore.Shell.Framework;
 using Sitecore.Shell.Framework.Commands;
 using Sitecore.Web.UI.Sheer;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace SharedSource.RedirectModule.Commands
 {
-    class DeleteRedirect : Command
+    internal class DeleteRedirect : Command
     {
         public override void Execute(CommandContext context)
         {
@@ -23,14 +17,16 @@ namespace SharedSource.RedirectModule.Commands
             else
             {
                 if (context.Items.Length == 1)
-                    Sitecore.Data.Database.GetDatabase("master").GetItem(((Item)context.Items[0]).ID).Delete();
+                {
+                    Database.GetDatabase("master").GetItem(context.Items[0].ID).Delete();
+                }
             }
 
             // force the item to refresh
-            Sitecore.Data.Items.Item myItem = Sitecore.Data.Database.GetDatabase("master").GetItem(new ID(context.Parameters[3]));
+            Item myItem = Database.GetDatabase("master").GetItem(new ID(context.Parameters[3]));
             if (myItem != null)
             {
-                string load = String.Concat(new object[] { "item:load(id=", myItem.ID, ",language=", myItem.Language, ",version=", myItem.Version, ")" });
+                string load = string.Concat("item:load(id=", myItem.ID, ",language=", myItem.Language, ",version=", myItem.Version, ")");
                 Sitecore.Context.ClientPage.SendMessage(this, load);
             }
         }
